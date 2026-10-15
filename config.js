@@ -9,9 +9,9 @@ window.HOWABOUT = {
 
   /* 후기 저장소: Firebase 웹 앱 설정값 (Firebase 콘솔 > 프로젝트 설정 > 내 앱) */
   firebase: {
-    apiKey: '',
-    authDomain: '',
-    projectId: '',
-    appId: ''
+    apiKey: 'AIzaSyDEa2qGvoE3uAwtk5zAr63heRn1k2HApg8',
+    authDomain: 'howabout-ce1c5.firebaseapp.com',
+    projectId: 'howabout-ce1c5',
+    appId: '1:951096376995:web:2044e03f7f0084d6648916'
   }
 };
