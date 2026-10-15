@@ -516,39 +516,12 @@ function renderTaste(){
   $('#mbnote').textContent=(m[0]==='E'?'사람 많고 활기찬 곳':'조용하고 여유로운 곳')+'과 '+(m[1]==='N'?'감성과 이야기가 있는 곳':'확실한 먹거리와 편안함')+' 위주로 고르고, '+(m[3]==='P'?'즉흥적인 변수를 크게':'안정적인 구성으로')+' 뽑아요.';
 }
 
-
-const setStatus = (t, bad, pct = null) => {
+const setStatus = (t, bad, loading) => {
   const e = $('#status');
-  if (!e) return;
-
-  e.replaceChildren();
+  e.textContent = t;
   e.classList.toggle('bad', !!bad);
-
-  const label = document.createElement('div');
-  label.textContent = t;
-  e.appendChild(label);
-
-  if (pct !== null && !bad) {
-    const row = document.createElement('div');
-    row.className = 'progress-row';
-
-    const track = document.createElement('div');
-    track.className = 'progress-track';
-
-    const fill = document.createElement('div');
-    fill.className = 'progress-fill';
-    fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
-    track.appendChild(fill);
-
-    const number = document.createElement('span');
-    number.className = 'progress-number';
-    number.textContent = Math.round(pct) + '%';
-
-    row.append(track, number);
-    e.appendChild(row);
-  }
+  e.classList.toggle('loading', !!loading);
 };
-
 
 
 /* ===== 지도 (MapLibre + OpenFreeMap) ===== */
@@ -671,13 +644,13 @@ async function run(opts){
   try{
     const key=KEYMAP[q.toLowerCase()];
     let next;
-    if(key&&!opts.geo){setStatus('여행지 확인 중...', false, 20));next=curatedDataset(key);if(f.move==='transit'&&next.move==='car'&&!opts.keepMove)f.move='car';else if(next.move==='transit'&&f.move==='car'&&!opts.keepMove)f.move='transit'}
+    if(key&&!opts.geo){setStatus('내장 데이터로 찾는 중이에요...');next=curatedDataset(key);if(f.move==='transit'&&next.move==='car'&&!opts.keepMove)f.move='car';else if(next.move==='transit'&&f.move==='car'&&!opts.keepMove)f.move='transit'}
     else{
-      setStatus('위치 확인 중...', false, 15);
+      setStatus('"'+q+'" 위치를 찾는 중이에요...');
       let g=opts.geo;
       if(!g){const list=await geocode(q);if(my!==runId)return;if(!list.length){setStatus('검색 결과가 없어요. 도시 이름으로 다시 검색해 보세요.',true);return}geoAlts=list;g=list[0]}
       const rad=f.radius==='auto'?autoRadius(g):(+f.radius)*1000;
-      setStatus('주변 관광지 검색 중...', false, 45);
+      setStatus('주변 관광지를 모으는 중이에요. 최대 30초 걸릴 수 있어요...');
       next=await osmDataset(g,rad);if(my!==runId)return;
       if(geoAlts.length>1)$('#alts').innerHTML='<span class="mbnote">다른 지역이면 선택:</span>'+geoAlts.slice(0,4).map((a,i)=>'<button type="button" class="qc" data-alt="'+i+'">'+esc(a.name.split(',').slice(0,2).join(','))+'</button>').join('');
       if(next.places.length<3){setStatus('후보지를 거의 찾지 못했어요. 탐색 반경을 넓히거나 더 큰 도시로 검색해 보세요.',true);return}
@@ -687,7 +660,7 @@ async function run(opts){
     let aiFail = false;
     let aiError = '';
     if (CFG.aiUrl && (cond || !ds.curated)) {
-  setStatus('AI가 여행 조건 분석 중...', false, 75);
+  setStatus('AI가 조건을 분석하고 있어요...', false, true);
   try {
     const a = await askAI(ds, cond, f);
     if (my !== runId) return;
