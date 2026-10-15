@@ -502,8 +502,8 @@ function buildPanel(){
    '<label for="sl" style="margin-top:6px;text-transform:none;letter-spacing:0;font-size:13px">직접 조절: 액티비티와 힐링</label>'+
    '<input id="sl" type="range" min="-10" max="10" step="1" value="'+Math.round(f.slider*10)+'" aria-label="액티비티와 힐링 비중"><div class="rl"><span>힐링 쪽</span><span>MBTI 기준</span><span>액티비티 쪽</span></div></div>'+
    seg('pace','템포',OPT.pace)+seg('budget','예산',OPT.budget)+seg('comp','동행',OPT.comp,'wrap')+seg('move','이동수단',OPT.move)+seg('radius','탐색 반경(해외·직접 검색)',OPT.radius)+
-   '<div class="g"><span class="lb">인원</span><div class="stp"><button type="button" data-pax="-1" aria-label="인원 줄이기">−</button><output id="pax">'+f.pax+'명</output><button type="button" data-pax="1" aria-label="인원 늘리기">+</button></div></div>'+
-   '<div class="g"><button class="btn" type="button" id="goRes">결과 보기</button></div>';
+   '<div class="g"><span class="lb">인원</span><div class="stp"><button type="button" data-pax="-1" aria-label="인원 줄이기">−</button><output id="pax">'+f.pax+'명</output><button type="button" data-pax="1" aria-label="인원 늘리기">+</button></div></div>';
+   
 }
 function syncPressed(){
   $$('#panel [data-k]').forEach(b=>b.setAttribute('aria-pressed',String(f[b.dataset.k])===b.dataset.v));
