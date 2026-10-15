@@ -301,7 +301,10 @@ function scorePlace(p,W,f,rnd,h,base){
   if(p.won!=null){const w=p.won/10000;s+=f.budget==='tight'?-w*.6:f.budget==='lux'?w*.2:-w*.08}
   else{const w=p.lv*.8;s+=f.budget==='tight'?-w*.5:f.budget==='lux'?w*.15:-w*.06}
   s+=.3*(p.pop||0);
-  if(h){if(h.boost&&h.boost.has(p.id))s+=1.5;if(h.indoor)s+=p.indoor?.8:-1.2}
+  if (h) {
+  if (h.boost && h.boost.has(p.id)) s += 3.0;
+  if (h.indoor) s += p.indoor ? 1.8 : -2.4;
+}
   if(f.move==='walk')s-=.25*Math.max(0,hav(base,p)*1.3-2.5);
   return s;
 }
