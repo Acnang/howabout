@@ -515,7 +515,14 @@ function renderTaste(){
   $('#bars').innerHTML=TAGS.map(t=>'<div class="tb"><span>'+TAG_KO[t]+'</span><i style="--v:'+Math.round(Math.max(.08,W[t]/mx)*100)+'%"></i></div>').join('');
   $('#mbnote').textContent=(m[0]==='E'?'사람 많고 활기찬 곳':'조용하고 여유로운 곳')+'과 '+(m[1]==='N'?'감성과 이야기가 있는 곳':'확실한 먹거리와 편안함')+' 위주로 고르고, '+(m[3]==='P'?'즉흥적인 변수를 크게':'안정적인 구성으로')+' 뽑아요.';
 }
-const setStatus=(t,bad)=>{const e=$('#status');e.textContent=t;e.classList.toggle('bad',!!bad)};
+
+const setStatus = (t, bad, loading) => {
+  const e = $('#status');
+  e.textContent = t;
+  e.classList.toggle('bad', !!bad);
+  e.classList.toggle('loading', !!loading);
+};
+
 
 /* ===== 지도 (MapLibre + OpenFreeMap) ===== */
 let map=null,mapLoaded=false,pendingMap=null,markers=[];
