@@ -657,7 +657,8 @@ async function run(opts){
     }
     ds=next;dayFilter=-1;
     hints=localHints(cond);
-    let aiFail=false;
+    let aiFail = false;
+    let aiError = '';
     if(CFG.aiUrl&&(cond||!ds.curated)){
       setStatus('AI가 조건을 해석하는 중이에요...');
       try{const a=await askAI(ds,cond,f);if(my!==runId)return;hints=mergeAI(hints,a,ds)}catch(e){aiFail=true;if(my!==runId)return}
