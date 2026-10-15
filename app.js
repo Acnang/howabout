@@ -659,10 +659,18 @@ async function run(opts){
     hints=localHints(cond);
     let aiFail = false;
     let aiError = '';
-    if(CFG.aiUrl&&(cond||!ds.curated)){
-      setStatus('AI가 조건을 해석하는 중이에요...');
-      try{const a=await askAI(ds,cond,f);if(my!==runId)return;hints=mergeAI(hints,a,ds)}catch(e){aiFail=true;if(my!==runId)return}
-    }
+    if (CFG.aiUrl && (cond || !ds.curated)) {
+  setStatus('AI가 조건을 분석하고 있어요...', false, true);
+  try {
+    const a = await askAI(ds, cond, f);
+    if (my !== runId) return;
+    hints = mergeAI(hints, a, ds);
+  } catch (e) {
+    aiFail = true;
+    aiError = e && e.message ? e.message : 'AI 요청 실패';
+    if (my !== runId) return;
+  }
+}
     const ch=applyHintsToForm();
     plan=null;replan();
     if(!plan){setStatus('일정을 만들 장소가 부족해요.',true);return}
