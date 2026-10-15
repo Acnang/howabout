@@ -178,3 +178,34 @@ textarea{min-height:84px}
   }
 }
 
+
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.progress-track {
+  flex: 1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface2);
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.35s ease;
+}
+
+.progress-number {
+  min-width: 40px;
+  text-align: right;
+  font-family: var(--f-mono);
+  font-size: 13px;
+  font-weight: 700;
+}
