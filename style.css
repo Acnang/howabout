@@ -1,4 +1,5 @@
 
+
 /* 레이아웃: 태블릿 가로는 좌측 취향 입력 + 우측 동선 결과, 세로·폰은 위아래로 쌓음.
    동선은 지하철 노선도처럼 일차별 색 라인 위에 번호 역으로 표시. */
 :root{
@@ -176,36 +177,4 @@ textarea{min-height:84px}
   #status.loading::before {
     animation: none;
   }
-}
-
-
-
-.progress-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.progress-track {
-  flex: 1;
-  height: 8px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--surface2);
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--accent);
-  transition: width 0.35s ease;
-}
-
-.progress-number {
-  min-width: 40px;
-  text-align: right;
-  font-family: var(--f-mono);
-  font-size: 13px;
-  font-weight: 700;
 }
