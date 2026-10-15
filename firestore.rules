@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 후기: 누구나 읽기, 로그인(익명 포함)한 사람만 본인 이름으로 쓰기, 삭제는 작성자만
+    match /reviews/{id} {
+      allow read: if true;
+
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['placeKey', 'rating', 'text', 'mbti', 'uid', 'ts'])
+        && request.resource.data.keys().hasAll(['placeKey', 'rating', 'text', 'mbti', 'uid', 'ts'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.placeKey is string
+        && request.resource.data.placeKey.size() > 0
+        && request.resource.data.placeKey.size() <= 60
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 200
+        && request.resource.data.mbti is string
+        && request.resource.data.mbti.size() == 4
+        && request.resource.data.ts == request.time;
+
+      allow update: if false;
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+  }
+}
