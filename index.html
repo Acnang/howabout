@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>하우어바웃</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%232447D6'/%3E%3Cpath d='M9 28L16 15L24 24L31 11' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="logo">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="var(--accent)"/><path d="M9 28 L16 15 L24 24 L31 11" fill="none" stroke="var(--accent-fg)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="28" r="3.4" fill="var(--accent-fg)"/><circle cx="16" cy="15" r="3.4" fill="var(--accent-fg)"/><circle cx="24" cy="24" r="3.4" fill="var(--accent-fg)"/><circle cx="31" cy="11" r="3.4" fill="var(--accent-fg)"/></svg>
+    <span class="wm">하우어바웃</span>
+  </div>
+  <p class="tag">여기는 어때요? 어디든 검색하면 성향대로 짜주는 덜 지치는 여행 동선</p>
+</header>
+
+<div class="layout">
+  <form class="panel" id="panel" onsubmit="return false" aria-label="여행 조건"></form>
+  <main class="results" id="results">
+    <div class="rhead">
+      <div class="chips" id="chips"></div>
+      <div class="acts">
+        <button class="btn pri" id="reroll" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1" fill="currentColor"/></svg>랜덤으로 다시 뽑기</button>
+        <button class="btn" id="dlx" type="button">엑셀 저장</button>
+        <button class="btn" id="dlp" type="button">PDF 저장</button>
+      </div>
+    </div>
+    <div class="sum" id="sum"></div>
+    <div class="tabs" id="tabs" role="group" aria-label="일차 선택"></div>
+    <div class="map"><div id="map"></div><div id="mapnote" class="note" hidden>지도를 불러오지 못했어요. 네트워크를 확인하거나 아래 장소별 구글·네이버 지도 링크를 이용해 주세요.</div></div>
+    <div id="days" style="display:grid;gap:14px"></div>
+    <p class="foot">운영시간과 비용은 추정값이 섞여 있어요. 이동시간은 직선거리 기반 추정이에요. 지도 © OpenStreetMap contributors, OpenFreeMap.</p>
+  </main>
+</div>
+
+<div id="sheetwrap" hidden>
+  <div class="scrim" id="scrim"></div>
+  <aside class="sheet" role="dialog" aria-modal="true" aria-labelledby="shT">
+    <div class="sh-h"><h2 id="shT"></h2><button class="btn" id="shX" type="button">닫기</button></div>
+    <div class="sh-b" id="shB"></div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
