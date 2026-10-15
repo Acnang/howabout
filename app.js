@@ -677,7 +677,12 @@ async function run(opts){
     setStatus('"'+ds.label+'" 일정을 만들었어요.'+(aiFail?' AI 연결에 실패해서 기본 해석으로 만들었어요.':''),false);
     const notes=hints.notes.slice();if(ch.length)notes.push('조건에 맞춰 바꾼 항목: '+ch.join(', '));
     $('#hintnote').textContent=notes.length?(hints.src==='ai'?'AI 해석: ':'기본 해석: ')+notes.join(' · '):'';
-    if(opts.scroll&&matchMedia('(max-width:999px)').matches)$('#results').scrollIntoView({behavior:'smooth',block:'start'});
+    if (opts.scroll) {
+  $('#results').scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  });
+}
   }catch(e){
     const m=e&&e.message?e.message:'오류';
     if(my===runId)setStatus(/^geocode/.test(m)||/Failed to fetch|NetworkError|Load failed/i.test(m)?'위치 검색 서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요. ('+m+')':'불러오지 못했어요. 잠시 뒤 다시 시도해 주세요. ('+m+')',true);
