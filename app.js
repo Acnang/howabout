@@ -109,7 +109,7 @@ const gmap=p=>'https://www.google.com/maps/search/?api=1&query='+p.lat+','+p.lng
 const nmap=p=>'https://map.naver.com/p/search/'+encodeURIComponent(p.name);
 const gfood=p=>'https://www.google.com/maps/search/restaurants/@'+p.lat+','+p.lng+',16z';
 const gdir=(base,order)=>{const q=p=>p.lat+','+p.lng,last=order[order.length-1],mid=order.slice(0,-1).map(q).join('|');
-  return'https://www.google.com/maps/dir/?api=1&origin='+q(base)+'&destination='+q(last)+(mid?'&waypoints='+encodeURIComponent(mid):'')+'&travelmode=driving'};
+  return'https://www.google.com/maps/dir/?api=1&origin='+q(base)+'&destination='+q(last)+(mid?'&waypoints='+encodeURIComponent(mid):'')+'&travelmode='+(plan&&plan.f.move==='walk'?'walking':plan&&plan.f.move==='transit'?'transit':'driving')};
 const title=p=>p.nameKo||p.name;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
@@ -143,11 +143,12 @@ async function geocode(q){
 function autoRadius(g){
   const b=g.bbox;if(b.length<4)return 8000;
   const dLat=(b[1]-b[0])*111,dLng=(b[3]-b[2])*111*Math.cos(g.lat*Math.PI/180),diag=Math.hypot(dLat,dLng);
-  return Math.round(Math.min(20,Math.max(4,diag/2))*1000);
+  /* 파리·도쿄처럼 큰 도시에서 무료 서버가 시간 초과되지 않도록 반경을 8km로 제한 */
+  return Math.round(Math.min(8,Math.max(3,diag/2))*1000);
 }
 function overpassQuery(lat,lng,R,relaxed){
   const A='(around:'+R+','+lat+','+lng+')',W=relaxed?'':'["wikidata"]';
-  return '[out:json][timeout:25];('+
+  return '[out:json][timeout:20];('+
    'nwr["tourism"~"^(attraction|museum|gallery|viewpoint|zoo|aquarium|theme_park)$"]["name"]'+A+';'+
    'nwr["historic"~"^(castle|palace|fort|monument|memorial|archaeological_site|ruins|temple|city_gate|manor)$"]["name"]'+W+A+';'+
    'nwr["leisure"~"^(park|garden|nature_reserve)$"]["name"]'+W+A+';'+
@@ -195,18 +196,56 @@ function osmPlace(el){
   return{id:'osm:'+el.type+'/'+el.id,key:'osm:'+el.type+'/'+el.id,name,orig:t.name,lat,lng,tags:c.tags,type:c.type,open:h[0],close:h[1],stay:c.stay,walk:c.walk,won:null,lv:c.lv,desc:c.desc,pop,indoor:c.indoor,osm:true};
 }
 async function overpass(q){
-  const eps=['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+  const eps=['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
   let err;
   for(const ep of eps){
     try{
-      const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),32000);
+      const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),24000);
       const r=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q),signal:ctl.signal});
       clearTimeout(to);
       if(!r.ok)throw new Error('overpass '+r.status);
-      return await r.json();
+      const j=await r.json();
+      if(!j||!Array.isArray(j.elements))throw new Error('overpass 빈 응답');
+      return j;
     }catch(e){err=e}
   }
   throw err;
+}
+/* 위키백과 지오서치: 지도 서버(Overpass)가 막혔거나 결과가 적을 때 쓰는 보조 데이터. 조회수로 인기도, 한국어 문서 제목으로 한글 이름 */
+const WIKI_BAD=/railway|metro|subway|station|airport|school|university|college|hospital|hotel|stadium|arena|company|football|sports club|commune|municipality|city in|town in|village|county|prefecture|ward of|neighbo(u)?rhood|quarter of|arrondissement|district of|\bband\b|album|\bfilm\b|television|politician|footballer|actor|singer|born/i;
+const WIKI_CLS=[
+ [/museum|gallery/i,{type:'museum',tags:['cult'],stay:90,walk:1,lv:2,hours:[10,18],indoor:true,desc:'박물관·미술관'}],
+ [/zoo|aquarium|theme park|amusement/i,{type:'themepark',tags:['act'],stay:180,walk:2,lv:3,hours:[10,18],indoor:false,desc:'테마파크·동물원'}],
+ [/church|cathedral|basilica|temple|shrine|mosque|monastery|abbey|synagogue|pagoda/i,{type:'worship',tags:['cult'],stay:40,walk:1,lv:0,hours:[8,18],indoor:true,desc:'종교 건축'}],
+ [/castle|palace|fort|ruins|archaeological|historic|monument|memorial|gate|tomb|mausoleum|old town|heritage|cemetery|triumphal/i,{type:'historic',tags:['cult','photo'],stay:60,walk:2,lv:1,hours:[9,18],indoor:false,desc:'역사 유적'}],
+ [/garden|park|botanical|nature reserve|forest|lake|river|canal|waterfall|island/i,{type:'park',tags:['heal'],stay:70,walk:1,lv:0,hours:[0,24],indoor:false,desc:'공원·자연'}],
+ [/beach|bay/i,{type:'beach',tags:['heal','photo'],stay:80,walk:1,lv:0,hours:[0,24],indoor:false,desc:'해변'}],
+ [/mountain|peak|hill|volcano/i,{type:'peak',tags:['act'],stay:180,walk:3,lv:0,hours:[0,24],indoor:false,desc:'산·전망'}],
+ [/market|bazaar|shopping|department store/i,{type:'market',tags:['food'],stay:60,walk:1,lv:1,hours:[9,20],indoor:false,desc:'시장·쇼핑'}],
+ [/tower|bridge|observation|skyscraper|square|plaza|landmark|arch\b|opera|theat(re|er)|library|boulevard|avenue|tourist|attraction/i,{type:'attraction',tags:['photo','cult'],stay:60,walk:2,lv:1,hours:[0,24],indoor:false,desc:'대표 명소'}]
+];
+async function wikiPlaces(g,radiusM){
+  const R=Math.min(10000,Math.max(3000,radiusM)),sub=Math.round(R*.7),off=sub,dl=off/111320,dg=off/(111320*Math.cos(g.lat*Math.PI/180));
+  const pts=[[g.lat,g.lng],[g.lat+dl,g.lng],[g.lat-dl,g.lng],[g.lat,g.lng+dg],[g.lat,g.lng-dg]];
+  const res=await Promise.all(pts.map(p=>fetch('https://en.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&origin=*&generator=geosearch&ggsnamespace=0&ggslimit=50&ggsradius='+sub+'&ggscoord='+p[0].toFixed(5)+'%7C'+p[1].toFixed(5)+'&prop=coordinates%7Cdescription%7Cpageviews%7Clanglinks&lllang=ko&lllimit=max&colimit=max')
+    .then(r=>r.ok?r.json():null).catch(()=>null)));
+  if(!res.some(Boolean))throw new Error('wikipedia 응답 없음');
+  const seen={},out=[];
+  res.forEach(j=>{
+    let pages=j&&j.query&&j.query.pages;if(!pages)return;
+    if(!Array.isArray(pages))pages=Object.values(pages);
+    pages.forEach(pg=>{
+      if(!pg||seen[pg.pageid])return;seen[pg.pageid]=1;
+      const co=pg.coordinates&&pg.coordinates[0],desc=String(pg.description||'');
+      if(!co||!desc||WIKI_BAD.test(desc))return;
+      const hit=WIKI_CLS.find(c=>c[0].test(desc));if(!hit)return;
+      const c=hit[1],ko=pg.langlinks&&pg.langlinks[0]&&(pg.langlinks[0].title||pg.langlinks[0]['*']);
+      let v=0;if(pg.pageviews)for(const k in pg.pageviews)v+=pg.pageviews[k]||0;
+      const pop=Math.max(0,Math.min(6,(Math.log10(1+v)-2.5)*1.6))+(ko?.8:0);
+      out.push({id:'wp:'+pg.pageid,key:'wp:'+pg.pageid,name:ko||pg.title,orig:pg.title,lat:co.lat,lng:co.lon,tags:c.tags,type:c.type,open:c.hours[0],close:c.hours[1],stay:c.stay,walk:c.walk,won:null,lv:c.lv,desc:c.desc,pop,indoor:c.indoor,osm:true});
+    });
+  });
+  return out;
 }
 function dedupe(list){
   const out=[];
@@ -220,12 +259,21 @@ async function osmDataset(g,radiusM){
   const key='poi:'+g.lat.toFixed(2)+','+g.lng.toFixed(2)+','+radiusM;
   let places=cacheGet(key);
   if(!places){
-    let j=await overpass(overpassQuery(g.lat,g.lng,radiusM,false));
-    let list=dedupe((j.elements||[]).map(osmPlace).filter(Boolean));
-    if(list.length<14){
-      j=await overpass(overpassQuery(g.lat,g.lng,Math.min(radiusM*1.6,40000),true));
+    let list=[],err=null;
+    try{
+      const j=await overpass(overpassQuery(g.lat,g.lng,radiusM,false));
       list=dedupe((j.elements||[]).map(osmPlace).filter(Boolean));
+    }catch(e){err=e}
+    if(!err&&list.length<14){
+      try{
+        const j=await overpass(overpassQuery(g.lat,g.lng,Math.min(radiusM*1.5,15000),true));
+        list=dedupe((j.elements||[]).map(osmPlace).filter(Boolean));
+      }catch(e){err=e}
     }
+    if(list.length<14){
+      try{const w=await wikiPlaces(g,radiusM);list=dedupe(list.concat(w))}catch(e){err=err||e}
+    }
+    if(!list.length&&err)throw new Error('관광지 데이터 서버가 응답하지 않아요: '+(err.name==='AbortError'?'시간 초과':err.message));
     places=list.slice(0,90);
     if(places.length)cacheSet(key,places);
   }
@@ -267,8 +315,9 @@ function pickPlaces(places,K,W,f,rnd,h,base){
   return chosen;
 }
 function leg(a,b,mv){
-  const km=hav(a,b)*1.35;
-  if(mv==='walk'||km<1.2)return{min:Math.max(mv==='walk'?2:3,Math.round(km*13)),km,mode:'도보'};
+  const km=hav(a,b)*1.35,wk=Math.round(km*13);
+  /* 도보 위주여도 30분 넘게 걸어야 하는 구간은 대중교통으로 안내 */
+  if(km<1.2||(mv==='walk'&&wk<=30))return{min:Math.max(mv==='walk'?2:3,wk),km,mode:'도보'};
   if(mv==='car')return{min:Math.round(6+km/34*60),km,mode:'차량'};
   return{min:Math.round(10+km/20*60),km,mode:'대중교통'};
 }
@@ -316,11 +365,33 @@ function fatigue(s,order){
   return Math.min(100,Math.round((s.travel*.8+w+late+order.length*4)/3));
 }
 function fatLabel(v){return v<=35?'여유':v<=60?'적당':v<=80?'빡빡':'고단'}
+/* 도보 위주: 후보가 가장 많이 모인 곳을 중심으로 걸어갈 만한 반경 안의 장소만 쓴다 */
+function walkCluster(pool,K){
+  for(const R of [1.8,3,5,8,14]){
+    let best=null;
+    for(const c of pool){
+      const m=pool.filter(p=>hav(c,p)<=R);
+      if(m.length>=K){const sc=m.length+m.reduce((a,p)=>a+(p.pop||0),0)*.02;if(!best||sc>best.sc)best={sc,m}}
+    }
+    if(best){
+      const n=best.m.length;
+      return{pool:best.m,R,lat:best.m.reduce((a,p)=>a+p.lat,0)/n,lng:best.m.reduce((a,p)=>a+p.lng,0)/n};
+    }
+  }
+  return null;
+}
 function planTrip(f,seed,ds,h){
-  const rnd=mulberry32(seed),W=tasteWeights(f,h),base={lat:ds.center[0],lng:ds.center[1],name:'숙소(도심)'};
-  const pool=ds.places.filter(p=>!(h&&h.exclude&&h.exclude.has(p.id)));
+  const rnd=mulberry32(seed),W=tasteWeights(f,h);
+  let base={lat:ds.center[0],lng:ds.center[1],name:'숙소(도심)'},note='';
+  let pool=ds.places.filter(p=>!(h&&h.exclude&&h.exclude.has(p.id)));
   const per={relaxed:3,normal:4,packed:5}[f.pace],K=Math.min(pool.length,f.days*per);
   if(K<1)return null;
+  if(f.move==='walk'){
+    const wc=walkCluster(pool,K);
+    if(wc){pool=wc.pool;base={lat:wc.lat,lng:wc.lng,name:'숙소(도보권 중심)'};
+      note=wc.R<=3?'도보 위주라서 걸어서 다닐 수 있는 반경 약 '+wc.R+'km 안의 장소만 골랐어요.':'걸어서 다닐 만한 곳이 모자라 반경 약 '+wc.R+'km까지 넓혔어요. 30분 넘게 걸리는 구간은 대중교통으로 안내해요.';}
+    else note='도보권에 모여 있는 장소가 부족해서 30분 넘게 걸리는 구간은 대중교통으로 안내해요.';
+  }
   const picked=pickPlaces(pool,K,W,f,rnd,h,base),groups=splitDays(picked,f.days);
   const cen=g=>hav(base,{lat:g.reduce((a,p)=>a+p.lat,0)/g.length,lng:g.reduce((a,p)=>a+p.lng,0)/g.length});
   groups.sort((a,b)=>cen(a)-cen(b));
@@ -331,7 +402,7 @@ function planTrip(f,seed,ds,h){
     return{order:b.order,sim:b.sim,fatigue:fat,avgTravel:b.avgTravel,cost};
   });
   const travel=days.reduce((a,d)=>a+d.sim.travel,0),saved=Math.max(0,Math.round(days.reduce((a,d)=>a+d.avgTravel,0)-travel));
-  return{days,W,ds,base,all:ds.places,f,travel,saved,hasCost,
+  return{days,W,ds,base,note,all:ds.places,f,travel,saved,hasCost,
     fat:Math.round(days.reduce((a,d)=>a+d.fatigue,0)/days.length),
     cost:hasCost?days.reduce((a,d)=>a+d.cost,0):null,
     free:picked.filter(p=>p.lv===0).length,paid:picked.filter(p=>p.lv>0).length};
@@ -522,8 +593,9 @@ function dayHTML(d,i){
 }
 function render(){
   const P=plan;
-  if(!P){$('#sum').innerHTML='';$('#days').innerHTML='';$('#tabs').innerHTML='';return}
+  if(!P){$('#sum').innerHTML='';$('#days').innerHTML='';$('#tabs').innerHTML='';$('#plannote').textContent='';return}
   const f2=P.f;
+  $('#plannote').textContent=P.note||'';
   $('#chips').innerHTML=[P.ds.label,f2.days+'일',f2.mbti,COMP_KO[f2.comp]+' '+f2.pax+'명',BUD_KO[f2.budget]+' 예산'].map(t=>'<span>'+esc(t)+'</span>').join('');
   $('#sum').innerHTML='<div><b>'+P.travel+'분</b><small>총 이동시간</small></div><div><b>'+P.saved+'분</b><small>임의 순서보다 절약</small></div><div><b>'+P.fat+' '+fatLabel(P.fat)+'</b><small>평균 피로도</small></div>'+
     (P.hasCost?'<div><b>'+wonF(P.cost*f2.pax)+'</b><small>'+f2.pax+'명 예상 (입장·식비)</small></div>':'<div><b>유료 '+P.paid+'곳</b><small>무료 '+P.free+'곳 · 현지 요금은 직접 확인</small></div>');
@@ -588,7 +660,8 @@ async function run(opts){
     $('#hintnote').textContent=notes.length?(hints.src==='ai'?'AI 해석: ':'기본 해석: ')+notes.join(' · '):'';
     if(opts.scroll&&matchMedia('(max-width:999px)').matches)$('#results').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){
-    if(my===runId)setStatus('불러오지 못했어요. 잠시 뒤 다시 시도해 주세요. ('+(e&&e.message?e.message:'오류')+')',true);
+    const m=e&&e.message?e.message:'오류';
+    if(my===runId)setStatus(/^geocode/.test(m)||/Failed to fetch|NetworkError|Load failed/i.test(m)?'위치 검색 서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요. ('+m+')':'불러오지 못했어요. 잠시 뒤 다시 시도해 주세요. ('+m+')',true);
   }finally{if(my===runId)$('#go').disabled=false}
 }
 
