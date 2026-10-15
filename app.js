@@ -671,13 +671,13 @@ async function run(opts){
   try{
     const key=KEYMAP[q.toLowerCase()];
     let next;
-    if(key&&!opts.geo){setStatus('내장 데이터로 찾는 중이에요...');next=curatedDataset(key);if(f.move==='transit'&&next.move==='car'&&!opts.keepMove)f.move='car';else if(next.move==='transit'&&f.move==='car'&&!opts.keepMove)f.move='transit'}
+    if(key&&!opts.geo){setStatus('여행지 확인 중...', false, 20));next=curatedDataset(key);if(f.move==='transit'&&next.move==='car'&&!opts.keepMove)f.move='car';else if(next.move==='transit'&&f.move==='car'&&!opts.keepMove)f.move='transit'}
     else{
-      setStatus('"'+q+'" 위치를 찾는 중이에요...');
+      setStatus('위치 확인 중...', false, 15);
       let g=opts.geo;
       if(!g){const list=await geocode(q);if(my!==runId)return;if(!list.length){setStatus('검색 결과가 없어요. 도시 이름으로 다시 검색해 보세요.',true);return}geoAlts=list;g=list[0]}
       const rad=f.radius==='auto'?autoRadius(g):(+f.radius)*1000;
-      setStatus('주변 관광지를 모으는 중이에요. 최대 30초 걸릴 수 있어요...');
+      setStatus('주변 관광지 검색 중...', false, 45);
       next=await osmDataset(g,rad);if(my!==runId)return;
       if(geoAlts.length>1)$('#alts').innerHTML='<span class="mbnote">다른 지역이면 선택:</span>'+geoAlts.slice(0,4).map((a,i)=>'<button type="button" class="qc" data-alt="'+i+'">'+esc(a.name.split(',').slice(0,2).join(','))+'</button>').join('');
       if(next.places.length<3){setStatus('후보지를 거의 찾지 못했어요. 탐색 반경을 넓히거나 더 큰 도시로 검색해 보세요.',true);return}
@@ -687,7 +687,7 @@ async function run(opts){
     let aiFail = false;
     let aiError = '';
     if (CFG.aiUrl && (cond || !ds.curated)) {
-  setStatus('AI가 조건을 분석하고 있어요...', false, true);
+  setStatus('AI가 여행 조건 분석 중...', false, 75);
   try {
     const a = await askAI(ds, cond, f);
     if (my !== runId) return;
