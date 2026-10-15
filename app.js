@@ -890,7 +890,7 @@ $('#panel').addEventListener('click',e=>{
   else if(b.dataset.k){const k=b.dataset.k;f[k]=(k==='days'||k==='start')?+b.dataset.v:b.dataset.v;if(k==='move')f.move=b.dataset.v;if(k==='radius'){syncPressed();save();return}replan()}
   else if(b.dataset.m){const i=+b.dataset.m,a=f.mbti.split('');a[i]=b.dataset.v;f.mbti=a.join('');replan()}
   else if(b.dataset.pax){f.pax=Math.max(1,Math.min(8,f.pax+ +b.dataset.pax));syncPressed();render();save()}
-  else if(b.id==='goRes')$('#results').scrollIntoView({behavior:'smooth',block:'start'});
+  
 });
 $('#panel').addEventListener('input',e=>{if(e.target.id==='sl'){f.slider=(+e.target.value)/10;replan()}});
 $('#panel').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='dest'){e.preventDefault();run({scroll:true})}});
