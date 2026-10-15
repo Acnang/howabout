@@ -492,7 +492,7 @@ function buildPanel(){
    '<div class="chips2" id="quick" aria-label="바로 가기">'+quick+'</div>'+
    '<label for="cond" style="margin-top:6px">원하는 조건</label>'+
    '<textarea id="cond" rows="3" maxlength="300" placeholder="예: 비 오는 날 실내 위주, 아이와 함께, 맛집 많이, 너무 걷지 않게">'+esc(cond)+'</textarea>'+
-   '<button class="btn pri" id="go" type="button">'+(CFG.aiUrl?'AI로 일정 짜기':'조건대로 일정 짜기')+'</button>'+
+   '<button class="btn pri" id="go" type="button">조건 적용하고 결과 보기</button>'+
    '<div class="mbnote" id="status" role="status"></div><div class="chips2" id="alts"></div><div class="mbnote" id="hintnote"></div></div>'+
    seg('days','기간',OPT.days)+seg('start','하루 시작',OPT.start)+
    '<div class="g mb"><span class="lb">MBTI</span><div class="mbig" id="mbig"></div>'+
