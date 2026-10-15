@@ -5,7 +5,7 @@ window.HOWABOUT = {
 
   /* AI 조건 해석: Cloudflare Worker 주소. 예) https://howabout-ai.내계정.workers.dev
      비워 두면 키워드 기반 기본 해석으로 동작해요. */
-  aiUrl: '',
+  aiUrl: 'https://howabout-ai.kimchman0625.workers.dev',
 
   /* 후기 저장소: Firebase 웹 앱 설정값 (Firebase 콘솔 > 프로젝트 설정 > 내 앱) */
   firebase: {
