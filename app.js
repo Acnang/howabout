@@ -516,12 +516,39 @@ function renderTaste(){
   $('#mbnote').textContent=(m[0]==='E'?'사람 많고 활기찬 곳':'조용하고 여유로운 곳')+'과 '+(m[1]==='N'?'감성과 이야기가 있는 곳':'확실한 먹거리와 편안함')+' 위주로 고르고, '+(m[3]==='P'?'즉흥적인 변수를 크게':'안정적인 구성으로')+' 뽑아요.';
 }
 
-const setStatus = (t, bad, loading) => {
+
+const setStatus = (t, bad, pct = null) => {
   const e = $('#status');
-  e.textContent = t;
+  if (!e) return;
+
+  e.replaceChildren();
   e.classList.toggle('bad', !!bad);
-  e.classList.toggle('loading', !!loading);
+
+  const label = document.createElement('div');
+  label.textContent = t;
+  e.appendChild(label);
+
+  if (pct !== null && !bad) {
+    const row = document.createElement('div');
+    row.className = 'progress-row';
+
+    const track = document.createElement('div');
+    track.className = 'progress-track';
+
+    const fill = document.createElement('div');
+    fill.className = 'progress-fill';
+    fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    track.appendChild(fill);
+
+    const number = document.createElement('span');
+    number.className = 'progress-number';
+    number.textContent = Math.round(pct) + '%';
+
+    row.append(track, number);
+    e.appendChild(row);
+  }
 };
+
 
 
 /* ===== 지도 (MapLibre + OpenFreeMap) ===== */
