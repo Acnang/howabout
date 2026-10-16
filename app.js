@@ -670,12 +670,12 @@ async function run(opts){
     let aiFail=false;
     if(CFG.aiUrl&&(cond||!ds.curated)){
       setStatus('AI가 조건을 해석하는 중이에요...');
-      try{const a=await askAI(ds,cond,f);if(my!==runId)return;hints=mergeAI(hints,a,ds)}catch(e){aiFail=true;if(my!==runId)return}
+      try{const a=await askAI(ds,cond,f);if(my!==runId)return;hints=mergeAI(hints,a,ds)}catch(e){aiFail=e&&e.message||'오류';if(my!==runId)return}
     }
     const ch=applyHintsToForm();
     plan=null;replan();
     if(!plan){setStatus('일정을 만들 장소가 부족해요.',true);return}
-    setStatus('"'+ds.label+'" 일정을 만들었어요.'+(aiFail?' AI 연결에 실패해서 기본 해석으로 만들었어요.':''),false);
+    setStatus('"'+ds.label+'" 일정을 만들었어요.'+(aiFail?' AI 연결에 실패해서 기본 해석으로 만들었어요. ('+aiFail+')':''),false);
     const notes=hints.notes.slice();if(ch.length)notes.push('조건에 맞춰 바꾼 항목: '+ch.join(', '));
     $('#hintnote').textContent=notes.length?(hints.src==='ai'?'AI 해석: ':'기본 해석: ')+notes.join(' · '):'';
     if(opts.scroll&&matchMedia('(max-width:999px)').matches)$('#results').scrollIntoView({behavior:'smooth',block:'start'});
