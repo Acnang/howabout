@@ -132,11 +132,20 @@ function curatedDataset(k){
 let lastNom=0;
 async function geocode(q){
   const ck='geo:'+q.toLowerCase();const hit=cacheGet(ck);if(hit)return hit;
-  const wait=Math.max(0,lastNom+1100-Date.now());if(wait)await sleep(wait);lastNom=Date.now();
-  const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=ko&q='+encodeURIComponent(q));
-  if(!r.ok)throw new Error('geocode '+r.status);
-  const j=await r.json();
-  const out=j.map(x=>({name:x.display_name,lat:+x.lat,lng:+x.lon,bbox:(x.boundingbox||[]).map(Number)}));
+  let out;
+  /* 브라우저에서 Nominatim을 직접 호출하면 CORS로 막힐 때가 있어서, Worker 주소가 있으면 그쪽을 거쳐 간다 */
+  if(CFG.aiUrl){
+    const r=await fetch(CFG.aiUrl+'/geocode?q='+encodeURIComponent(q));
+    if(!r.ok)throw new Error('geocode '+r.status);
+    const j=await r.json();
+    out=(j.results||[]).map(x=>({name:x.name,lat:+x.lat,lng:+x.lng,bbox:x.bbox||[]}));
+  }else{
+    const wait=Math.max(0,lastNom+1100-Date.now());if(wait)await sleep(wait);lastNom=Date.now();
+    const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=ko&q='+encodeURIComponent(q));
+    if(!r.ok)throw new Error('geocode '+r.status);
+    const j=await r.json();
+    out=j.map(x=>({name:x.display_name,lat:+x.lat,lng:+x.lon,bbox:(x.boundingbox||[]).map(Number)}));
+  }
   if(out.length)cacheSet(ck,out);
   return out;
 }
@@ -196,6 +205,17 @@ function osmPlace(el){
   return{id:'osm:'+el.type+'/'+el.id,key:'osm:'+el.type+'/'+el.id,name,orig:t.name,lat,lng,tags:c.tags,type:c.type,open:h[0],close:h[1],stay:c.stay,walk:c.walk,won:null,lv:c.lv,desc:c.desc,pop,indoor:c.indoor,osm:true};
 }
 async function overpass(q){
+  /* Worker 주소가 있으면 서버 쪽에서 여러 미러를 대신 시도한다 (브라우저 직접 호출은 CORS로 막힐 때가 있음) */
+  if(CFG.aiUrl){
+    const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),26000);
+    try{
+      const r=await fetch(CFG.aiUrl+'/overpass',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q}),signal:ctl.signal});
+      if(!r.ok)throw new Error('overpass '+r.status);
+      const j=await r.json();
+      if(!j||!Array.isArray(j.elements))throw new Error('overpass 빈 응답');
+      return j;
+    }finally{clearTimeout(to)}
+  }
   const eps=['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
   let err;
   for(const ep of eps){
@@ -301,10 +321,7 @@ function scorePlace(p,W,f,rnd,h,base){
   if(p.won!=null){const w=p.won/10000;s+=f.budget==='tight'?-w*.6:f.budget==='lux'?w*.2:-w*.08}
   else{const w=p.lv*.8;s+=f.budget==='tight'?-w*.5:f.budget==='lux'?w*.15:-w*.06}
   s+=.3*(p.pop||0);
-  if (h) {
-  if (h.boost && h.boost.has(p.id)) s += 3.0;
-  if (h.indoor) s += p.indoor ? 1.8 : -2.4;
-}
+  if(h){if(h.boost&&h.boost.has(p.id))s+=1.5;if(h.indoor)s+=p.indoor?.8:-1.2}
   if(f.move==='walk')s-=.25*Math.max(0,hav(base,p)*1.3-2.5);
   return s;
 }
@@ -492,7 +509,7 @@ function buildPanel(){
    '<div class="chips2" id="quick" aria-label="바로 가기">'+quick+'</div>'+
    '<label for="cond" style="margin-top:6px">원하는 조건</label>'+
    '<textarea id="cond" rows="3" maxlength="300" placeholder="예: 비 오는 날 실내 위주, 아이와 함께, 맛집 많이, 너무 걷지 않게">'+esc(cond)+'</textarea>'+
-   '<button class="btn pri" id="go" type="button">조건 적용하고 결과 보기</button>'+
+   '<button class="btn pri" id="go" type="button">'+(CFG.aiUrl?'AI로 일정 짜기':'조건대로 일정 짜기')+'</button>'+
    '<div class="mbnote" id="status" role="status"></div><div class="chips2" id="alts"></div><div class="mbnote" id="hintnote"></div></div>'+
    seg('days','기간',OPT.days)+seg('start','하루 시작',OPT.start)+
    '<div class="g mb"><span class="lb">MBTI</span><div class="mbig" id="mbig"></div>'+
@@ -502,8 +519,8 @@ function buildPanel(){
    '<label for="sl" style="margin-top:6px;text-transform:none;letter-spacing:0;font-size:13px">직접 조절: 액티비티와 힐링</label>'+
    '<input id="sl" type="range" min="-10" max="10" step="1" value="'+Math.round(f.slider*10)+'" aria-label="액티비티와 힐링 비중"><div class="rl"><span>힐링 쪽</span><span>MBTI 기준</span><span>액티비티 쪽</span></div></div>'+
    seg('pace','템포',OPT.pace)+seg('budget','예산',OPT.budget)+seg('comp','동행',OPT.comp,'wrap')+seg('move','이동수단',OPT.move)+seg('radius','탐색 반경(해외·직접 검색)',OPT.radius)+
-   '<div class="g"><span class="lb">인원</span><div class="stp"><button type="button" data-pax="-1" aria-label="인원 줄이기">−</button><output id="pax">'+f.pax+'명</output><button type="button" data-pax="1" aria-label="인원 늘리기">+</button></div></div>';
-   
+   '<div class="g"><span class="lb">인원</span><div class="stp"><button type="button" data-pax="-1" aria-label="인원 줄이기">−</button><output id="pax">'+f.pax+'명</output><button type="button" data-pax="1" aria-label="인원 늘리기">+</button></div></div>'+
+   '<div class="g"><button class="btn" type="button" id="goRes">결과 보기</button></div>';
 }
 function syncPressed(){
   $$('#panel [data-k]').forEach(b=>b.setAttribute('aria-pressed',String(f[b.dataset.k])===b.dataset.v));
@@ -515,14 +532,7 @@ function renderTaste(){
   $('#bars').innerHTML=TAGS.map(t=>'<div class="tb"><span>'+TAG_KO[t]+'</span><i style="--v:'+Math.round(Math.max(.08,W[t]/mx)*100)+'%"></i></div>').join('');
   $('#mbnote').textContent=(m[0]==='E'?'사람 많고 활기찬 곳':'조용하고 여유로운 곳')+'과 '+(m[1]==='N'?'감성과 이야기가 있는 곳':'확실한 먹거리와 편안함')+' 위주로 고르고, '+(m[3]==='P'?'즉흥적인 변수를 크게':'안정적인 구성으로')+' 뽑아요.';
 }
-
-const setStatus = (t, bad, loading) => {
-  const e = $('#status');
-  e.textContent = t;
-  e.classList.toggle('bad', !!bad);
-  e.classList.toggle('loading', !!loading);
-};
-
+const setStatus=(t,bad)=>{const e=$('#status');e.textContent=t;e.classList.toggle('bad',!!bad)};
 
 /* ===== 지도 (MapLibre + OpenFreeMap) ===== */
 let map=null,mapLoaded=false,pendingMap=null,markers=[];
@@ -657,32 +667,18 @@ async function run(opts){
     }
     ds=next;dayFilter=-1;
     hints=localHints(cond);
-    let aiFail = false;
-    let aiError = '';
-    if (CFG.aiUrl && (cond || !ds.curated)) {
-  setStatus('AI가 조건을 분석하고 있어요...', false, true);
-  try {
-    const a = await askAI(ds, cond, f);
-    if (my !== runId) return;
-    hints = mergeAI(hints, a, ds);
-  } catch (e) {
-    aiFail = true;
-    aiError = e && e.message ? e.message : 'AI 요청 실패';
-    if (my !== runId) return;
-  }
-}
+    let aiFail=false;
+    if(CFG.aiUrl&&(cond||!ds.curated)){
+      setStatus('AI가 조건을 해석하는 중이에요...');
+      try{const a=await askAI(ds,cond,f);if(my!==runId)return;hints=mergeAI(hints,a,ds)}catch(e){aiFail=true;if(my!==runId)return}
+    }
     const ch=applyHintsToForm();
     plan=null;replan();
     if(!plan){setStatus('일정을 만들 장소가 부족해요.',true);return}
     setStatus('"'+ds.label+'" 일정을 만들었어요.'+(aiFail?' AI 연결에 실패해서 기본 해석으로 만들었어요.':''),false);
     const notes=hints.notes.slice();if(ch.length)notes.push('조건에 맞춰 바꾼 항목: '+ch.join(', '));
     $('#hintnote').textContent=notes.length?(hints.src==='ai'?'AI 해석: ':'기본 해석: ')+notes.join(' · '):'';
-    if (opts.scroll) {
-  $('#results').scrollIntoView({
-    behavior: 'smooth',
-    block: 'start'
-  });
-}
+    if(opts.scroll&&matchMedia('(max-width:999px)').matches)$('#results').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){
     const m=e&&e.message?e.message:'오류';
     if(my===runId)setStatus(/^geocode/.test(m)||/Failed to fetch|NetworkError|Load failed/i.test(m)?'위치 검색 서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요. ('+m+')':'불러오지 못했어요. 잠시 뒤 다시 시도해 주세요. ('+m+')',true);
@@ -890,7 +886,7 @@ $('#panel').addEventListener('click',e=>{
   else if(b.dataset.k){const k=b.dataset.k;f[k]=(k==='days'||k==='start')?+b.dataset.v:b.dataset.v;if(k==='move')f.move=b.dataset.v;if(k==='radius'){syncPressed();save();return}replan()}
   else if(b.dataset.m){const i=+b.dataset.m,a=f.mbti.split('');a[i]=b.dataset.v;f.mbti=a.join('');replan()}
   else if(b.dataset.pax){f.pax=Math.max(1,Math.min(8,f.pax+ +b.dataset.pax));syncPressed();render();save()}
-  
+  else if(b.id==='goRes')$('#results').scrollIntoView({behavior:'smooth',block:'start'});
 });
 $('#panel').addEventListener('input',e=>{if(e.target.id==='sl'){f.slider=(+e.target.value)/10;replan()}});
 $('#panel').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='dest'){e.preventDefault();run({scroll:true})}});
