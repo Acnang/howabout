@@ -326,10 +326,12 @@ function scorePlace(p,W,f,rnd,h,base){
   return s;
 }
 function pickPlaces(places,K,W,f,rnd,h,base){
+  const foc=h&&h.focus;
   const sc=places.map(p=>({p,s:scorePlace(p,W,f,rnd,h,base)})),chosen=[],used={};
   while(chosen.length<K&&sc.length){
     let bi=-1,bs=-1e9;
-    sc.forEach((o,i)=>{const v=o.s-.3*o.p.tags.reduce((a,t)=>a+(used[t]||0),0)/o.p.tags.length;if(v>bs){bs=v;bi=i}});
+    /* 조건에서 한 가지 취향을 강하게 요청했으면(h.focus) 그 태그는 다양성 패널티에서 빼서 몰아줄 수 있게 한다 */
+    sc.forEach((o,i)=>{const v=o.s-.3*o.p.tags.reduce((a,t)=>a+(t===foc?0:(used[t]||0)),0)/o.p.tags.length;if(v>bs){bs=v;bi=i}});
     const o=sc.splice(bi,1)[0];chosen.push(o.p);o.p.tags.forEach(t=>used[t]=(used[t]||0)+1);
   }
   return chosen;
@@ -433,11 +435,13 @@ function localHints(text){
   const t=(text||'').toLowerCase(),h={w:{},notes:[],boost:new Set(),exclude:new Set(),indoor:false,src:'local'};
   const add=(k,v,n)=>{h.w[k]=(h.w[k]||0)+v;h.notes.push(n)};
   if(/실내|비\s*오|우천|rain|indoor/.test(t)){h.indoor=true;h.notes.push('실내 위주')}
-  if(/맛집|먹|음식|미식|food/.test(t))add('food',.9,'맛집 비중 올림');
-  if(/사진|감성|인스타|포토|photo/.test(t))add('photo',.9,'포토 스폿 비중 올림');
-  if(/조용|힐링|휴식|여유|산책|relax|quiet/.test(t))add('heal',.9,'힐링 비중 올림');
-  if(/액티비티|체험|등산|트레킹|활동|스포츠|adventure|hike/.test(t))add('act',.9,'액티비티 비중 올림');
-  if(/역사|문화|박물관|미술|전시|유적|museum|history|culture/.test(t))add('cult',.9,'문화 비중 올림');
+  /* "~위주로/~중심으로/~만" 처럼 한 가지를 강하게 원하면 그 항목을 밀어주고, 다양성 패널티도 그 항목만 빼준다(아래 pickPlaces 참고) */
+  const strong=/위주|중심|만\s*(가|보|다니|구경)|주로/.test(t);
+  if(/식당|음식점|레스토랑|밥집|맛집|먹|음식|미식|food|restaurant/.test(t)){add('food',strong?2.2:1.3,'맛집·식당 비중 올림');h.focus='food'}
+  if(/사진|감성|인스타|포토|photo/.test(t)){add('photo',strong?2.2:1.3,'포토 스폿 비중 올림');if(!h.focus)h.focus='photo'}
+  if(/조용|힐링|휴식|여유|산책|relax|quiet/.test(t)){add('heal',strong?2.2:1.3,'힐링 비중 올림');if(!h.focus)h.focus='heal'}
+  if(/액티비티|체험|등산|트레킹|활동|스포츠|adventure|hike/.test(t)){add('act',strong?2.2:1.3,'액티비티 비중 올림');if(!h.focus)h.focus='act'}
+  if(/역사|문화|박물관|미술|전시|유적|museum|history|culture/.test(t)){add('cult',strong?2.2:1.3,'문화 비중 올림');if(!h.focus)h.focus='cult'}
   if(/아이|아기|어린이|키즈|kids?|child/.test(t)){h.comp='family';h.notes.push('아이 동반으로 이해')}
   else if(/부모님|어르신|노부모|할머니|할아버지|elder|parents/.test(t)){h.comp='parents';h.notes.push('부모님과 동행으로 이해')}
   else if(/연인|커플|데이트|신혼|couple|honeymoon/.test(t)){h.comp='couple';h.notes.push('연인과 동행으로 이해')}
@@ -464,7 +468,12 @@ function mergeAI(h,a,ds){
   const ids=new Set(ds.places.map(p=>p.id)),W=['act','heal','food','cult','photo'];
   h.src='ai';h.notes=[];
   if(a.summary)h.notes.push(String(a.summary).slice(0,120));
-  if(a.weights&&typeof a.weights==='object'){h.w={};W.forEach(k=>{const v=+a.weights[k];if(isFinite(v))h.w[k]=Math.max(-1,Math.min(1.2,(v-1)*.8))})}
+  if(a.weights&&typeof a.weights==='object'){
+    h.w={};W.forEach(k=>{const v=+a.weights[k];if(isFinite(v))h.w[k]=Math.max(-1,Math.min(1.2,(v-1)*.8))});
+    /* AI가 한 취향을 뚜렷하게 밀면(1.6배 이상), 그 태그도 사람이 직접 입력했을 때처럼 다양성 패널티에서 빼준다 */
+    let bestK=null,bestV=1.6;W.forEach(k=>{const v=+a.weights[k];if(isFinite(v)&&v>bestV){bestV=v;bestK=k}});
+    if(bestK)h.focus=bestK;else delete h.focus;
+  }else delete h.focus;
   if(typeof a.indoor==='boolean')h.indoor=a.indoor;
   ['boost','exclude'].forEach(k=>{if(Array.isArray(a[k]))h[k]=new Set(a[k].filter(x=>ids.has(x)))});
   if(a.comp&&COMP_KO[a.comp])h.comp=a.comp;else delete h.comp;
@@ -532,7 +541,7 @@ function renderTaste(){
   $('#bars').innerHTML=TAGS.map(t=>'<div class="tb"><span>'+TAG_KO[t]+'</span><i style="--v:'+Math.round(Math.max(.08,W[t]/mx)*100)+'%"></i></div>').join('');
   $('#mbnote').textContent=(m[0]==='E'?'사람 많고 활기찬 곳':'조용하고 여유로운 곳')+'과 '+(m[1]==='N'?'감성과 이야기가 있는 곳':'확실한 먹거리와 편안함')+' 위주로 고르고, '+(m[3]==='P'?'즉흥적인 변수를 크게':'안정적인 구성으로')+' 뽑아요.';
 }
-const setStatus=(t,bad)=>{const e=$('#status');e.textContent=t;e.classList.toggle('bad',!!bad)};
+const setStatus=(t,bad,busy)=>{const e=$('#status');e.textContent=t;e.classList.toggle('bad',!!bad);e.classList.toggle('loading',!!busy)};
 
 /* ===== 지도 (MapLibre + OpenFreeMap) ===== */
 let map=null,mapLoaded=false,pendingMap=null,markers=[];
@@ -654,13 +663,13 @@ async function run(opts){
   try{
     const key=KEYMAP[q.toLowerCase()];
     let next;
-    if(key&&!opts.geo){setStatus('내장 데이터로 찾는 중이에요...');next=curatedDataset(key);if(f.move==='transit'&&next.move==='car'&&!opts.keepMove)f.move='car';else if(next.move==='transit'&&f.move==='car'&&!opts.keepMove)f.move='transit'}
+    if(key&&!opts.geo){setStatus('내장 데이터로 찾는 중이에요...',false,true);next=curatedDataset(key);if(f.move==='transit'&&next.move==='car'&&!opts.keepMove)f.move='car';else if(next.move==='transit'&&f.move==='car'&&!opts.keepMove)f.move='transit'}
     else{
-      setStatus('"'+q+'" 위치를 찾는 중이에요...');
+      setStatus('"'+q+'" 위치를 찾는 중이에요...',false,true);
       let g=opts.geo;
       if(!g){const list=await geocode(q);if(my!==runId)return;if(!list.length){setStatus('검색 결과가 없어요. 도시 이름으로 다시 검색해 보세요.',true);return}geoAlts=list;g=list[0]}
       const rad=f.radius==='auto'?autoRadius(g):(+f.radius)*1000;
-      setStatus('주변 관광지를 모으는 중이에요. 최대 30초 걸릴 수 있어요...');
+      setStatus('주변 관광지를 모으는 중이에요. 최대 30초 걸릴 수 있어요...',false,true);
       next=await osmDataset(g,rad);if(my!==runId)return;
       if(geoAlts.length>1)$('#alts').innerHTML='<span class="mbnote">다른 지역이면 선택:</span>'+geoAlts.slice(0,4).map((a,i)=>'<button type="button" class="qc" data-alt="'+i+'">'+esc(a.name.split(',').slice(0,2).join(','))+'</button>').join('');
       if(next.places.length<3){setStatus('후보지를 거의 찾지 못했어요. 탐색 반경을 넓히거나 더 큰 도시로 검색해 보세요.',true);return}
@@ -669,7 +678,7 @@ async function run(opts){
     hints=localHints(cond);
     let aiFail=false;
     if(CFG.aiUrl&&(cond||!ds.curated)){
-      setStatus('AI가 조건을 해석하는 중이에요...');
+      setStatus('AI가 조건을 해석하는 중이에요...',false,true);
       try{const a=await askAI(ds,cond,f);if(my!==runId)return;hints=mergeAI(hints,a,ds)}catch(e){aiFail=e&&e.message||'오류';if(my!==runId)return}
     }
     const ch=applyHintsToForm();
@@ -681,7 +690,7 @@ async function run(opts){
     if(opts.scroll&&matchMedia('(max-width:999px)').matches)$('#results').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){
     const m=e&&e.message?e.message:'오류';
-    if(my===runId)setStatus(/^geocode/.test(m)||/Failed to fetch|NetworkError|Load failed/i.test(m)?'위치 검색 서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요. ('+m+')':'불러오지 못했어요. 잠시 뒤 다시 시도해 주세요. ('+m+')',true);
+    if(my===runId)setStatus(/^geocode/.test(m)||/Failed to fetch|NetworkError|Load failed/i.test(m)?'위치 검색 서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요. ('+m+')':'불러오지 못했어요. 잠시 뒤 다시 시도해 주세요. ('+m+')',true,false);
   }finally{if(my===runId)$('#go').disabled=false}
 }
 
