@@ -279,19 +279,25 @@ async function osmDataset(g,radiusM){
   const key='poi:'+g.lat.toFixed(2)+','+g.lng.toFixed(2)+','+radiusM;
   let places=cacheGet(key);
   if(!places){
+    /* 한 단계가 실패해도(err) 다음 단계는 그대로 시도한다 — 전에는 Overpass 1차가 실패하면
+       2차 시도도 건너뛰어서, 위키백과로는 살릴 수 있었던 검색까지 그냥 오류로 끝나버렸다 */
     let list=[],err=null;
     try{
       const j=await overpass(overpassQuery(g.lat,g.lng,radiusM,false));
       list=dedupe((j.elements||[]).map(osmPlace).filter(Boolean));
     }catch(e){err=e}
-    if(!err&&list.length<14){
+    if(list.length<14){
       try{
         const j=await overpass(overpassQuery(g.lat,g.lng,Math.min(radiusM*1.5,15000),true));
-        list=dedupe((j.elements||[]).map(osmPlace).filter(Boolean));
-      }catch(e){err=e}
+        const more=dedupe((j.elements||[]).map(osmPlace).filter(Boolean));
+        if(more.length){list=dedupe(list.concat(more));err=null}
+      }catch(e){if(!list.length)err=e}
     }
     if(list.length<14){
-      try{const w=await wikiPlaces(g,radiusM);list=dedupe(list.concat(w))}catch(e){err=err||e}
+      try{
+        const w=await wikiPlaces(g,radiusM);
+        if(w.length){list=dedupe(list.concat(w));err=null}
+      }catch(e){if(!list.length)err=err||e}
     }
     if(!list.length&&err)throw new Error('관광지 데이터 서버가 응답하지 않아요: '+(err.name==='AbortError'?'시간 초과':err.message));
     places=list.slice(0,90);
@@ -460,7 +466,12 @@ async function askAI(ds,cond,f){
   try{
     const r=await fetch(CFG.aiUrl,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({dest:ds.label,cond:cond||'',profile:{mbti:f.mbti,comp:f.comp,budget:f.budget,pace:f.pace,days:f.days},cands}),signal:ctl.signal});
-    if(!r.ok)throw new Error('ai '+r.status);
+    if(!r.ok){
+      /* Worker가 보낸 {error,status} 본문까지 같이 보여줘서, 'ai 502'보다 구체적인 원인을 알 수 있게 한다 */
+      let detail='';
+      try{const j=await r.json();if(j&&j.error)detail=' '+j.error+(j.status?':'+j.status:'')}catch{}
+      throw new Error('ai '+r.status+detail);
+    }
     return await r.json();
   }finally{clearTimeout(to)}
 }
@@ -528,8 +539,7 @@ function buildPanel(){
    '<label for="sl" style="margin-top:6px;text-transform:none;letter-spacing:0;font-size:13px">직접 조절: 액티비티와 힐링</label>'+
    '<input id="sl" type="range" min="-10" max="10" step="1" value="'+Math.round(f.slider*10)+'" aria-label="액티비티와 힐링 비중"><div class="rl"><span>힐링 쪽</span><span>MBTI 기준</span><span>액티비티 쪽</span></div></div>'+
    seg('pace','템포',OPT.pace)+seg('budget','예산',OPT.budget)+seg('comp','동행',OPT.comp,'wrap')+seg('move','이동수단',OPT.move)+seg('radius','탐색 반경(해외·직접 검색)',OPT.radius)+
-   '<div class="g"><span class="lb">인원</span><div class="stp"><button type="button" data-pax="-1" aria-label="인원 줄이기">−</button><output id="pax">'+f.pax+'명</output><button type="button" data-pax="1" aria-label="인원 늘리기">+</button></div></div>'+
-   '<div class="g"><button class="btn" type="button" id="goRes">결과 보기</button></div>';
+   '<div class="g"><span class="lb">인원</span><div class="stp"><button type="button" data-pax="-1" aria-label="인원 줄이기">−</button><output id="pax">'+f.pax+'명</output><button type="button" data-pax="1" aria-label="인원 늘리기">+</button></div></div>';
 }
 function syncPressed(){
   $$('#panel [data-k]').forEach(b=>b.setAttribute('aria-pressed',String(f[b.dataset.k])===b.dataset.v));
@@ -892,12 +902,14 @@ $('#panel').addEventListener('click',e=>{
   if(b.dataset.q){$('#dest').value=b.dataset.q;run({scroll:true})}
   else if(b.dataset.alt!=null){const g=geoAlts[+b.dataset.alt];if(g){$('#dest').value=g.name.split(',')[0];run({geo:g,scroll:true})}}
   else if(b.id==='go')run({scroll:true});
-  else if(b.dataset.k){const k=b.dataset.k;f[k]=(k==='days'||k==='start')?+b.dataset.v:b.dataset.v;if(k==='move')f.move=b.dataset.v;if(k==='radius'){syncPressed();save();return}replan()}
-  else if(b.dataset.m){const i=+b.dataset.m,a=f.mbti.split('');a[i]=b.dataset.v;f.mbti=a.join('');replan()}
+  else if(b.dataset.k){const k=b.dataset.k;f[k]=(k==='days'||k==='start')?+b.dataset.v:b.dataset.v;if(k==='move')f.move=b.dataset.v;if(k==='radius'){syncPressed();save();return}replan();scrollToResults()}
+  else if(b.dataset.m){const i=+b.dataset.m,a=f.mbti.split('');a[i]=b.dataset.v;f.mbti=a.join('');replan();scrollToResults()}
   else if(b.dataset.pax){f.pax=Math.max(1,Math.min(8,f.pax+ +b.dataset.pax));syncPressed();render();save()}
-  else if(b.id==='goRes')$('#results').scrollIntoView({behavior:'smooth',block:'start'});
 });
+/* 설정(MBTI·템포·예산 등)을 바꾸면 결과가 바로 갱신되는데, 버튼을 따로 두지 않고 모바일에서는 결과로 자동 스크롤해준다 */
+function scrollToResults(){if(plan&&matchMedia('(max-width:999px)').matches)$('#results').scrollIntoView({behavior:'smooth',block:'start'})}
 $('#panel').addEventListener('input',e=>{if(e.target.id==='sl'){f.slider=(+e.target.value)/10;replan()}});
+$('#panel').addEventListener('change',e=>{if(e.target.id==='sl')scrollToResults()});
 $('#panel').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='dest'){e.preventDefault();run({scroll:true})}});
 $('#reroll').onclick=()=>{seed=Math.floor(Math.random()*1e9)+1;replan()};
 $('#results').addEventListener('click',e=>{
