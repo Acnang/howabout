@@ -469,7 +469,7 @@ async function askAI(ds,cond,f){
     if(!r.ok){
       /* Worker가 보낸 {error,status} 본문까지 같이 보여줘서, 'ai 502'보다 구체적인 원인을 알 수 있게 한다 */
       let detail='';
-      try{const j=await r.json();if(j&&j.error)detail=' '+j.error+(j.status?':'+j.status:'')}catch{}
+      try{const j=await r.json();if(j&&j.error)detail=' '+j.error+(j.status?':'+j.status:'')+(j.detail?' - '+j.detail:'')}catch{}
       throw new Error('ai '+r.status+detail);
     }
     return await r.json();
