@@ -155,7 +155,16 @@ Use only ids from the candidate list. Do not invent places.`;
       })
     });
   } catch { return json({ error: 'upstream unreachable' }, 502); }
-  if (!r.ok) return json({ error: 'upstream', status: r.status }, 502);
+  if (!r.ok) {
+    /* Gemini가 보낸 실제 거절 사유를 Worker 로그에도 남기고, 화면에도 바로 보이게 같이 돌려준다 */
+    let detail = '';
+    try {
+      const eb = await r.json();
+      detail = (eb && eb.error && eb.error.message) ? String(eb.error.message).slice(0, 200) : '';
+    } catch {}
+    console.log('gemini upstream error', r.status, detail);
+    return json({ error: 'upstream', status: r.status, detail }, 502);
+  }
 
   let text = '';
   try {
